@@ -24,14 +24,20 @@ export default class FillHandle extends CoreFeature {
 		this.element = document.createElement("div");
 		this.element.classList.add("tabulator-range-fill-handle");
 		this.element.addEventListener("mousedown", this.handleMouseDown);
-
-		this.subscribe("range-active-changed", (range) => this.attach(range));
 	}
 
-	attach(range) {
-		if (this.element.parentNode !== range.element) {
-			range.element.appendChild(this.element);
+	/**
+	 * Place the handle in the active range's bottom right cell.
+	 * @param {HTMLElement} cellElement
+	 */
+	attach(cellElement) {
+		if (this.element.parentNode !== cellElement) {
+			cellElement.appendChild(this.element);
 		}
+	}
+
+	detach() {
+		this.element.remove();
 	}
 
 	handleMouseDown(e) {
@@ -52,11 +58,9 @@ export default class FillHandle extends CoreFeature {
 		this.preview = new Range(this.table, this.rangeManager, {
 			rect: this.source,
 			skipEvents: true,
-			classNames: ["tabulator-range-fill-preview"],
 		});
 
-		this.rangeManager.rangeContainer.appendChild(this.preview.element);
-		this.preview.layout();
+		this.rangeManager.layoutElement(true);
 		this.subscribe("cell-mousemove", this.handleCellMouseMove);
 		document.addEventListener("mouseup", this.handleMouseUp);
 	}
@@ -83,7 +87,7 @@ export default class FillHandle extends CoreFeature {
 		);
 
 		this.preview.setRect(rect);
-		this.preview.layout();
+		this.rangeManager.layoutElement(true);
 	}
 
 	async handleMouseUp() {
@@ -108,6 +112,8 @@ export default class FillHandle extends CoreFeature {
 		range.setData(data);
 
 		this.preview.destroy();
+		this.preview = null;
+		this.rangeManager.layoutElement();
 	}
 
 	/**
@@ -208,5 +214,6 @@ export default class FillHandle extends CoreFeature {
 		document.removeEventListener("mouseup", this.handleMouseUp);
 		this.element.remove();
 		this.preview?.destroy();
+		this.preview = null;
 	}
 }

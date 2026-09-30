@@ -16,9 +16,7 @@ export default class SelectRange extends Module {
 		this.selecting = "cell";
 		this.mousedown = false;
 		this.ranges = [];
-		this.overlay = null;
 		this.rowHeader = null;
-		this.layoutChangeTimeout = null;
 		this.columnSelection = false;
 		this.rowSelection = false;
 		this.maxRanges = 0;
@@ -80,18 +78,6 @@ export default class SelectRange extends Module {
 	
 	
 	initializeTable() {		
-		this.overlay = document.createElement("div");
-		this.overlay.classList.add("tabulator-range-overlay");
-		
-		this.rangeContainer = document.createElement("div");
-		this.rangeContainer.classList.add("tabulator-range-container");
-		
-		this.activeRangeCellElement = document.createElement("div");
-		this.activeRangeCellElement.classList.add("tabulator-range-cell-active");
-		
-		this.overlay.appendChild(this.rangeContainer);
-		this.overlay.appendChild(this.activeRangeCellElement);
-		
 		if(this.options("selectableRangeFill")){
 			this.fillHandle = new FillHandle(this.table, this);
 		}
@@ -100,7 +86,6 @@ export default class SelectRange extends Module {
 		
 		this.setDefaultRange();
 		
-		this.table.rowManager.element.appendChild(this.overlay);
 		this.table.columnManager.element.setAttribute("tabindex", 0);
 		this.table.element.classList.add("tabulator-ranges");
 	}
@@ -115,12 +100,8 @@ export default class SelectRange extends Module {
 		this.subscribe("column-resized", this.handleColumnResized.bind(this));
 		this.subscribe("column-moving", this.handleColumnMoving.bind(this));
 		this.subscribe("column-moved", this.handleColumnMoved.bind(this));
-		this.subscribe("column-width", this.layoutChange.bind(this));
-		this.subscribe("column-height", this.layoutChange.bind(this));
-		this.subscribe("column-resized", this.layoutChange.bind(this));
 		this.subscribe("columns-loaded", this.updateHeaderColumn.bind(this));
 		
-		this.subscribe("cell-height", this.layoutChange.bind(this));
 		this.subscribe("cell-rendered", this.renderCell.bind(this));
 		this.subscribe("cell-mousedown", this.handleCellMouseDown.bind(this));
 		this.subscribe("cell-mousemove", this.handleCellMouseMove.bind(this));
@@ -128,9 +109,6 @@ export default class SelectRange extends Module {
 		this.subscribe("cell-editing", this.handleEditingCell.bind(this));
 		
 		this.subscribe("page-changed", this.redraw.bind(this));
-		
-		this.subscribe("scroll-vertical", this.layoutChange.bind(this));
-		this.subscribe("scroll-horizontal", this.layoutChange.bind(this));
 		
 		this.subscribe("data-destroy", this.tableDestroyed.bind(this));
 		this.subscribe("data-processed", this.setDefaultRange.bind(this));
@@ -241,6 +219,9 @@ export default class SelectRange extends Module {
 	_handleMouseUp(e){
 		this.mousedown = false;
 		document.removeEventListener("mouseup", this.mouseUpEvent);
+		
+		//a drag only restyles the visible rows, so bring the rest up to date
+		this.layoutElement();
 	}
 	
 	_handleKeyDown(e) {
@@ -325,7 +306,6 @@ export default class SelectRange extends Module {
 	
 	handleColumnMoving(_event, column) {
 		this.resetRanges().setBounds(column);
-		this.overlay.style.visibility = "hidden";
 	}
 
 	handleColumnMoved(from, _to, _after) {
@@ -365,12 +345,57 @@ export default class SelectRange extends Module {
 	
 	renderCell(cell) {
 		var el = cell.getElement(),
-		rangeIdx = this.ranges.findIndex((range) => range.occupies(cell));
+		row = cell.row.position - 1,
+		col = cell.column.getPosition() - 1,
+		rangeIdx = this.ranges.findIndex((range) => range.rect.hasPoint(col, row)),
+		preview = this.fillHandle && this.fillHandle.preview,
+		edges = {top:false, bottom:false, left:false, right:false},
+		fillEdges = {top:false, bottom:false, left:false, right:false},
+		activeRange = this.activeRange,
+		isActive = !!activeRange && activeRange.start.row === row && activeRange.start.col === col,
+		isFillCorner = !!activeRange && activeRange.rect.bottom === row && activeRange.rect.right === col;
 		
 		el.classList.toggle("tabulator-range-selected", rangeIdx !== -1);
 		el.classList.toggle("tabulator-range-only-cell-selected", this.ranges.length === 1 && this.ranges[0].atTopLeft(cell) &&	this.ranges[0].atBottomRight(cell));
 		
 		el.dataset.range = rangeIdx;
+		
+		// The range outline is drawn by the cells on its edges rather than an overlay, so it moves with
+		// the cells as they scroll, are virtually rendered or stick in frozen columns.
+		this.ranges.forEach((range) => this._addCellEdges(edges, range.rect, row, col));
+		
+		if(preview){
+			this._addCellEdges(fillEdges, preview.rect, row, col);
+		}
+		
+		this._toggleEdgeClasses(el, "tabulator-range-", edges);
+		this._toggleEdgeClasses(el, "tabulator-range-fill-", fillEdges);
+		
+		el.classList.toggle("tabulator-range-cell-active", isActive);
+		
+		if(this.fillHandle && isFillCorner){
+			this.fillHandle.attach(el);
+		}
+	}
+	
+	_addCellEdges(edges, rect, row, col){
+		if(rect.hasPoint(col, row)){
+			edges.top = edges.top || row === rect.top;
+			edges.bottom = edges.bottom || row === rect.bottom;
+			edges.left = edges.left || col === rect.left;
+			edges.right = edges.right || col === rect.right;
+		}
+	}
+	
+	_toggleEdgeClasses(el, prefix, edges){
+		//range columns run right to left in rtl mode
+		var left = this.table.rtl ? edges.right : edges.left,
+		right = this.table.rtl ? edges.left : edges.right;
+		
+		el.classList.toggle(prefix + "top", edges.top);
+		el.classList.toggle(prefix + "bottom", edges.bottom);
+		el.classList.toggle(prefix + "left", left);
+		el.classList.toggle(prefix + "right", right);
 	}
 	
 	handleCellMouseDown(event, cell) {
@@ -572,7 +597,7 @@ export default class SelectRange extends Module {
 			}
 		}
 		
-		this.layoutElement(true);
+		this.layoutElement();
 	}
 	
 	findJumpRow(column, rows, reverse, emptyStart, emptySide){
@@ -774,12 +799,6 @@ export default class SelectRange extends Module {
 	///////       Layout        ///////
 	///////////////////////////////////
 	
-	layoutChange(){
-		this.overlay.style.visibility = "hidden";
-		clearTimeout(this.layoutChangeTimeout);
-		this.layoutChangeTimeout = setTimeout(this.layoutRanges.bind(this), 200);
-	}
-	
 	redraw(force) {
 		if (force) {
 			this.selecting = 'cell';
@@ -797,6 +816,11 @@ export default class SelectRange extends Module {
 			rows = this.table.rowManager.getRows();
 		}
 		
+		//renderCell reattaches the fill handle to the range's new bottom right cell
+		if(this.fillHandle){
+			this.fillHandle.detach();
+		}
+		
 		rows.forEach((row) => {
 			if (row.type === "row") {
 				this.layoutRow(row);
@@ -807,8 +831,6 @@ export default class SelectRange extends Module {
 		this.getTableColumns().forEach((column) => {
 			this.layoutColumn(column);
 		});
-		
-		this.layoutRanges();
 	}
 	
 	layoutRow(row) {
@@ -840,38 +862,6 @@ export default class SelectRange extends Module {
 		el.classList.toggle("tabulator-range-selected", selected);
 		el.classList.toggle("tabulator-range-highlight", occupied);
 	}
-	
-	layoutRanges() {
-		var activeCell, activeCellEl, activeRowEl;
-		
-		if (!this.table.initialized) {
-			return;
-		}
-		
-		activeCell = this.getActiveCell();
-		
-		if (!activeCell) {
-			return;
-		}
-
-		activeCellEl = activeCell.getElement();
-		activeRowEl = activeCell.row.getElement();
-
-		if(this.table.rtl){
-			this.activeRangeCellElement.style.right = activeRowEl.offsetWidth - activeCellEl.offsetLeft - activeCellEl.offsetWidth + "px";
-		}else{
-			this.activeRangeCellElement.style.left = activeRowEl.offsetLeft + activeCellEl.offsetLeft + "px";
-		}
-
-		this.activeRangeCellElement.style.top =	activeRowEl.offsetTop + "px";
-		this.activeRangeCellElement.style.width = activeCellEl.offsetWidth + "px";
-		this.activeRangeCellElement.style.height =  activeRowEl.offsetHeight  + "px";
-		
-		this.ranges.forEach((range) => range.layout());
-		
-		this.overlay.style.visibility = "visible";
-	}
-	
 	
 	///////////////////////////////////
 	///////  Helper Functions   ///////
@@ -934,7 +924,6 @@ export default class SelectRange extends Module {
 		
 		this.setActiveRange(range);
 		this.ranges.push(range);
-		this.rangeContainer.appendChild(range.element);
 		
 		return range;
 	}

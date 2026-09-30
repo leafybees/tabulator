@@ -5,7 +5,7 @@ import { join } from "path";
 test.describe("Fill handle", () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto(`file://${join(__dirname, "fill-handle.html")}`);
-		await page.waitForSelector(".tabulator-range-overlay");
+		await page.waitForSelector(".tabulator-range-cell-active");
 	});
 
 	function cell(page, rowIndex, field) {
@@ -15,11 +15,7 @@ test.describe("Fill handle", () => {
 			.locator(`.tabulator-cell[tabulator-field="${field}"]`);
 	}
 
-	// Layout changes hide the range overlay briefly, letting the column resize
-	// handle take the mousedown. hover() is avoided as it scrolls, hiding it again.
 	async function pressFillHandle(page) {
-		await expect(page.locator(".tabulator-range-overlay")).toBeVisible();
-
 		const handle = await page.locator(".tabulator-range-fill-handle").boundingBox();
 		await page.mouse.move(
 			handle.x + handle.width / 2,
@@ -60,8 +56,8 @@ test.describe("Fill handle", () => {
 
 		await dragFillHandleTo(page, cell(page, 2, "name"));
 
-		await expect(page.locator(".tabulator-range")).toHaveCount(1);
-		await expect(page.locator(".tabulator-range-fill-preview")).toHaveCount(0);
+		expect(await page.evaluate(() => window.testTable.getRanges().length)).toBe(1);
+		await expect(page.locator("[class*='tabulator-range-fill-']:not(.tabulator-range-fill-handle)")).toHaveCount(0);
 		await expect
 			.poll(() => page.evaluate(() => window.testTable.getRangesData()))
 			.toEqual([[{ name: "Alice" }, { name: "Alice" }, { name: "Alice" }]]);

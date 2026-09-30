@@ -4,13 +4,12 @@ import Rect from "../../core/tools/Rect.js";
 
 export default class Range extends CoreFeature{
 	/**
-	 * @param {{start?: Cell|Column, end?: Cell|Column, rect?: Rect, skipEvents?: boolean, classNames?: string[]}} options
+	 * @param {{start?: Cell|Column, end?: Cell|Column, rect?: Rect, skipEvents?: boolean}} options
 	 */
 	constructor(table, rangeManager, options) {
 		super(table);
 		
 		this.rangeManager = rangeManager;
-		this.element = null;
 		this.initialized = false;
 		this.initializing = {
 			start:false,
@@ -37,21 +36,10 @@ export default class Range extends CoreFeature{
 			this.end.col = 1;
 		}
 		
-		this.initElement(options.classNames);
-		
 		if (!options.rect) {
 			setTimeout(() => {
 				this.initBounds(options.start, options.end);
 			});
-		}
-	}
-	
-	initElement(classNames){
-		this.element = document.createElement("div");
-		this.element.classList.add("tabulator-range");
-		
-		if(classNames){
-			this.element.classList.add(...classNames);
 		}
 	}
 	
@@ -186,89 +174,6 @@ export default class Range extends CoreFeature{
 	
 	_getTableRows() {
 		return this.table.rowManager.getDisplayRows().filter(row=> row.type === "row");
-	}
-	
-	///////////////////////////////////
-	///////      Rendering      ///////
-	///////////////////////////////////
-	
-	layout() {
-		var _vDomTop = this.table.rowManager.renderer.vDomTop,
-		_vDomBottom = this.table.rowManager.renderer.vDomBottom,
-		_vDomLeft = this.table.columnManager.renderer.leftCol,
-		_vDomRight = this.table.columnManager.renderer.rightCol,
-		frozenLeftColumns = this.table.modules.frozenColumns.leftColumns,
-		frozenLeft = frozenLeftColumns.length,
-		frozenRightColumns = this.table.modules.frozenColumns.rightColumns,
-		frozenRight = frozenRightColumns.length,
-		top, bottom, left, right, topLeftCell, bottomRightCell, topLeftCellEl, bottomRightCellEl, topLeftRowEl, bottomRightRowEl;
-
-		if(this.table.options.renderHorizontal === "virtual" && this.rangeManager.rowHeader) {
-			_vDomRight += 1;
-		}
-		
-		if (_vDomTop == null) {
-			_vDomTop = 0;
-		}
-		
-		if (_vDomBottom == null) {
-			_vDomBottom = Infinity;
-		}
-		
-		if (_vDomLeft == null) {
-			_vDomLeft = 0;
-		}
-		
-		if (_vDomRight == null) {
-			_vDomRight = Infinity;
-		}
-
-		if (frozenLeft > 0 && frozenLeftColumns[0].isRowHeader === true) {
-			frozenLeft -= 1;
-		}
-		
-		if (this.overlaps(_vDomLeft, _vDomTop, _vDomRight, _vDomBottom)) {
-			top = Math.max(this.rect.top, _vDomTop);
-			bottom = Math.min(this.rect.bottom, _vDomBottom);
-			left = Math.max(this.rect.left, _vDomLeft);
-			right = Math.min(this.rect.right, _vDomRight + frozenLeft + frozenRight);
-			
-			topLeftCell = this.rangeManager.getCell(top, left);
-			bottomRightCell = this.rangeManager.getCell(bottom, right);
-			topLeftCellEl = topLeftCell.getElement();
-			bottomRightCellEl = bottomRightCell.getElement();
-			topLeftRowEl = topLeftCell.row.getElement();
-			bottomRightRowEl = bottomRightCell.row.getElement();
-			
-			this.element.classList.add("tabulator-range-active");
-			// this.element.classList.toggle("tabulator-range-active", this === this.rangeManager.activeRange);
-			
-			let occupiedFrozenColumnsWidth = 0;
-			this.rangeManager.getTableColumns().forEach((column) => {
-				if (this.occupiesColumn(column) && column.definition.frozen){
-					occupiedFrozenColumnsWidth += column.width;
-				}
-			});
-
-			if(this.table.rtl){
-				const calculatedRangeWidth = Math.max(
-					topLeftCellEl.offsetLeft + topLeftCellEl.offsetWidth - bottomRightCellEl.offsetLeft,
-					occupiedFrozenColumnsWidth,
-				);
-				this.element.style.right = topLeftRowEl.offsetWidth - topLeftCellEl.offsetLeft - topLeftCellEl.offsetWidth + "px";
-				this.element.style.width = calculatedRangeWidth + "px";
-			}else{
-				const calculatedRangeWidth = Math.max(
-					bottomRightCellEl.offsetLeft + bottomRightCellEl.offsetWidth - topLeftCellEl.offsetLeft,
-					occupiedFrozenColumnsWidth,
-				);
-				this.element.style.left = topLeftRowEl.offsetLeft + topLeftCellEl.offsetLeft + "px";
-				this.element.style.width = calculatedRangeWidth + "px";
-			}
-			
-			this.element.style.top = topLeftRowEl.offsetTop + "px";
-			this.element.style.height = bottomRightRowEl.offsetTop + bottomRightRowEl.offsetHeight - topLeftRowEl.offsetTop + "px";
-		}
 	}
 	
 	atTopLeft(cell) {
@@ -468,8 +373,6 @@ export default class Range extends CoreFeature{
 	
 	destroy(notify) {
 		this.destroyed = true;
-		
-		this.element.remove();
 		
 		if(notify){
 			this.rangeManager.rangeRemoved(this);
