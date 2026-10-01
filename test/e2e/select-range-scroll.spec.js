@@ -32,6 +32,29 @@ test.describe("Select range while scrolling", () => {
 		await expect(cell(page, startRow, startField)).toHaveClass(/tabulator-range-cell-active/);
 	}
 
+	async function expectHandleOnCorner(page, cellLocator) {
+		await expect.poll(async () => {
+			const handle = await page.locator(".tabulator-range-fill-handle").boundingBox();
+			const box = await cellLocator.boundingBox();
+
+			if (!handle || !box) {
+				return null;
+			}
+
+			return [
+				Math.round(handle.x + handle.width / 2 - (box.x + box.width)),
+				Math.round(handle.y + handle.height / 2 - (box.y + box.height)),
+			];
+		}).toEqual([0, 0]);
+
+		// nothing else, like a column resize handle, sits on top of it
+		const hit = await page.evaluate(() => {
+			const rect = document.querySelector(".tabulator-range-fill-handle").getBoundingClientRect();
+			return document.elementFromPoint(rect.x + rect.width - 1, rect.y + rect.height - 1).className;
+		});
+		expect(hit).toBe("tabulator-range-fill-handle");
+	}
+
 	async function scrollHolder(page, top, left) {
 		await page.evaluate(([top, left]) => {
 			const holder = document.querySelector(".tabulator-tableholder");
@@ -88,6 +111,22 @@ test.describe("Select range while scrolling", () => {
 		await expect(cell(page, 250, "c1")).toBeVisible();
 		await scrollHolder(page, 0, 0);
 
-		await expect(cell(page, 2, "c2").locator(".tabulator-range-fill-handle")).toBeVisible();
+		await expectHandleOnCorner(page, cell(page, 2, "c2"));
+	});
+
+	test("the fill handle sits on the corner of the range's bottom right cell", async ({ page }) => {
+		await selectRange(page, 1, "c1", 2, "c2");
+
+		await expectHandleOnCorner(page, cell(page, 2, "c2"));
+	});
+
+	test("the fill handle follows its cell through horizontal scrolling and column resizes", async ({ page }) => {
+		await selectRange(page, 1, "c3", 2, "c4");
+
+		await scrollHolder(page, 0, 150);
+		await expectHandleOnCorner(page, cell(page, 2, "c4"));
+
+		await page.evaluate(() => window.testTable.getColumn("c2").setWidth(180));
+		await expectHandleOnCorner(page, cell(page, 2, "c4"));
 	});
 });

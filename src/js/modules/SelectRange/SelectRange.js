@@ -374,7 +374,7 @@ export default class SelectRange extends Module {
 		el.classList.toggle("tabulator-range-cell-active", isActive);
 		
 		if(this.fillHandle && isFillCorner){
-			this.fillHandle.attach(el);
+			this.fillHandle.attach(cell);
 		}
 	}
 	

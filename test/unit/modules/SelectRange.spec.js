@@ -252,6 +252,11 @@ describe("SelectRange outline drawn on cells", () => {
         return edgeClasses.filter((cls) => el.classList.contains(cls)).map((cls) => cls.replace("tabulator-range-", ""));
     }
 
+    // jsdom lays nothing out; defined on the element so other elements keep the mocks above
+    function setLayout(el, prop, value) {
+        Object.defineProperty(el, prop, { configurable: true, get: () => value });
+    }
+
     async function addRange(startRow, startField, endRow, endField) {
         const rows = tabulator.getRows();
         const range = tabulator.addRange(rows[startRow].getCell(startField), rows[endRow].getCell(endField));
@@ -370,28 +375,66 @@ describe("SelectRange outline drawn on cells", () => {
         expect(edgesOf(cellEl(1, "c"))).toEqual(["top", "bottom", "left"]);
     });
 
-    it("puts the fill handle in the range's bottom right cell and moves it with the range", async () => {
+    it("puts the fill handle in the row of the range's bottom right cell and moves it with the range", async () => {
         await build({ selectableRange: 1, selectableRangeFill: true });
+        const fillHandle = tabulator.module("selectRange").fillHandle;
         await addRange(0, "a", 1, "b");
 
         let handles = tabulator.element.querySelectorAll(".tabulator-range-fill-handle");
         expect(handles.length).toBe(1);
-        expect(handles[0].parentNode).toBe(cellEl(1, "b"));
+        expect(handles[0].parentNode).toBe(tabulator.getRows()[1].getElement());
+        expect(fillHandle.cell).toBe(tabulator.getRows()[1].getCell("b")._cell);
 
         await addRange(2, "c", 3, "d");
 
         handles = tabulator.element.querySelectorAll(".tabulator-range-fill-handle");
         expect(handles.length).toBe(1);
-        expect(handles[0].parentNode).toBe(cellEl(3, "d"));
+        expect(handles[0].parentNode).toBe(tabulator.getRows()[3].getElement());
+        expect(fillHandle.cell).toBe(tabulator.getRows()[3].getCell("d")._cell);
     });
 
-    it("keeps the fill handle in its cell when the cell's contents are regenerated", async () => {
+    it("positions the fill handle on the right edge of its cell", async () => {
+        await build({ selectableRange: 1, selectableRangeFill: true });
+        const fillHandle = tabulator.module("selectRange").fillHandle;
+        await addRange(0, "a", 1, "b");
+
+        // jsdom lays nothing out, so give the corner cell a position in its row.
+        // offsetWidth is mocked to 100 for every element above.
+        setLayout(cellEl(1, "b"), "offsetLeft", 100);
+        setLayout(tabulator.getRows()[1].getElement(), "offsetWidth", 400);
+        fillHandle.position();
+
+        expect(fillHandle.element.style.left).toBe("200px");
+        expect(fillHandle.element.style.bottom).toBe("");
+    });
+
+    it("keeps the fill handle inside the table on its last column", async () => {
+        await build({ selectableRange: 1, selectableRangeFill: true });
+        const fillHandle = tabulator.module("selectRange").fillHandle;
+        await addRange(0, "a", 1, "d");
+
+        setLayout(cellEl(1, "d"), "offsetLeft", 300);
+        setLayout(tabulator.getRows()[1].getElement(), "offsetWidth", 400);
+        fillHandle.position();
+
+        expect(fillHandle.element.style.left).toBe("397px");
+    });
+
+    it("keeps the fill handle inside the table on its last row", async () => {
+        await build({ selectableRange: 1, selectableRangeFill: true });
+        const fillHandle = tabulator.module("selectRange").fillHandle;
+        await addRange(2, "a", 3, "b");
+
+        expect(fillHandle.element.style.bottom).toBe("0px");
+    });
+
+    it("keeps the fill handle when the corner cell's contents are regenerated", async () => {
         await build({ selectableRange: 1, selectableRangeFill: true });
         await addRange(0, "a", 1, "b");
 
         tabulator.getRows()[1].getCell("b").setValue(99);
 
-        expect(cellEl(1, "b").querySelector(".tabulator-range-fill-handle")).not.toBeNull();
+        expect(tabulator.getRows()[1].getElement().querySelector(".tabulator-range-fill-handle")).not.toBeNull();
     });
 
     it("warns that range getElement is deprecated and returns undefined", async () => {

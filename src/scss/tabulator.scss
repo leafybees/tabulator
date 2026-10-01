@@ -1239,11 +1239,12 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 }
 
 .tabulator-range-fill-handle {
-	//sits inside the range's bottom right cell, which clips anything that overflows it
+	//sits in the row of the range's bottom right cell, centred on the cell's corner, with its left offset set from JS
 	position: absolute;
-	right: 0;
-	bottom: 0;
-	z-index: 1;
+	bottom: -3px;
+	margin-left: -3px;
+	//above the column resize handles (z-index 11) on the cell edges around it, including the next row's
+	z-index: 12;
 	width: 6px;
 	height: 6px;
 	background-color: $rangeHandleColor;
@@ -1470,11 +1471,6 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 				}
 			}
 		}
-	}
-	
-	.tabulator-range-fill-handle {
-		left: 0;
-		right: initial;
 	}
 	
 	.tabulator-row{
