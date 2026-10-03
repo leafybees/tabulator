@@ -29,6 +29,7 @@
     "lint": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "prebuild": "eslint src --fix",
+    "prepare": "npm run build",
     "build": "rollup -c build/rollup.mjs",
     "dev": "rollup -c build/rollup.mjs -w --environment TARGET:dev",
     "dev:css": "rollup -c build/rollup.mjs -w --environment TARGET:css",
