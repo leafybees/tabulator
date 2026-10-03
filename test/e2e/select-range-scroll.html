@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Tabulator Test</title>
+		<link rel="stylesheet" href="../../dist/css/tabulator.min.css" />
+		<script src="../../dist/js/tabulator.js"></script>
+		<style>
+		body {
+			padding: 20px;
+			font-family: Arial, sans-serif;
+		}
+		#test-table {
+			width: 600px;
+			height: 300px;
+		}
+		</style>
+	</head>
+	<body>
+		<div id="test-table"></div>
+
+		<script>
+		const fields = Array.from({ length: 20 }, (_, i) => "c" + i);
+
+		const data = Array.from({ length: 300 }, (_, row) => {
+			const rowData = { id: row + 1 };
+			fields.forEach((field, col) => {
+				rowData[field] = row + ":" + col;
+			});
+			return rowData;
+		});
+
+		window.testTable = new Tabulator("#test-table", {
+			data: data,
+			renderHorizontal: "virtual",
+			selectableRange: 1,
+			selectableRangeRows: true,
+			selectableRangeColumns: true,
+			selectableRangeFill: true,
+			rowHeader: { resizable: false, frozen: true, width: 40, hozAlign: "center", formatter: "rownum", field: "rownum" },
+			columnDefaults: { width: 100, headerSort: false, editor: "input" },
+			columns: fields.map((field) => ({ title: field, field: field })),
+		});
+		</script>
+	</body>
+</html>

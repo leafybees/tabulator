@@ -4,7 +4,7 @@ import { join } from "path";
 test.describe("Select range tests", () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto(`file://${join(__dirname, "select-range.html")}`);
-		await page.waitForSelector(".tabulator-range-overlay");
+		await page.waitForSelector(".tabulator-range-cell-active");
 	});
 
 	test("Pressing `enter` should trigger editing", async ({ page }) => {

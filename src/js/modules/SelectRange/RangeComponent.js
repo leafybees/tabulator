@@ -14,7 +14,8 @@ export default class RangeComponent {
 	}
 
 	getElement() {
-		return this._range.element;
+		this._range.deprecationMsg("Range component getElement() is deprecated and returns undefined. Ranges are now drawn with classes on their cells: tabulator-range-selected, tabulator-range-top, tabulator-range-bottom, tabulator-range-left and tabulator-range-right");
+		return undefined;
 	}
 
 	getData() {

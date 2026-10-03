@@ -3,6 +3,9 @@ import Range from "./Range.js";
 import Rect from "../../core/tools/Rect.js";
 
 export default class FillHandle extends CoreFeature {
+	// Half the handle's size in the stylesheet
+	static RADIUS = 3;
+
 	constructor(table, rangeManager) {
 		super(table);
 
@@ -16,8 +19,13 @@ export default class FillHandle extends CoreFeature {
 		this.pointerRow = 0;
 		this.pointerCol = 0;
 		this.isActive = false;
+		/** @type {import("../../core/cell/Cell.js").default|null} */
+		this.cell = null;
+		this.positionFrame = null;
+		this.positionStale = false;
 
 		this.handleMouseDown = this.handleMouseDown.bind(this);
+		this.schedulePosition = this.schedulePosition.bind(this);
 		this.handleMouseUp = this.handleMouseUp.bind(this);
 		this.handleCellMouseMove = this.handleCellMouseMove.bind(this);
 
@@ -25,13 +33,83 @@ export default class FillHandle extends CoreFeature {
 		this.element.classList.add("tabulator-range-fill-handle");
 		this.element.addEventListener("mousedown", this.handleMouseDown);
 
-		this.subscribe("range-active-changed", (range) => this.attach(range));
+		// Only the handle's left offset is measured, so only horizontal layout changes move it.
+		this.subscribe("scroll-horizontal", this.schedulePosition);
+		this.subscribe("column-width", this.schedulePosition);
+		this.subscribe("column-moved", this.schedulePosition);
+		this.subscribe("column-show", this.schedulePosition);
+		this.subscribe("column-hide", this.schedulePosition);
+		this.subscribe("table-layout", this.schedulePosition);
+		this.subscribe("scroll-vertical", () => {
+			if (this.positionStale) {
+				this.schedulePosition();
+			}
+		});
 	}
 
-	attach(range) {
-		if (this.element.parentNode !== range.element) {
-			range.element.appendChild(this.element);
+	/**
+	 * Place the handle on the corner of the active range's bottom right cell.
+	 * It lives in the cell's row rather than the cell, as cells clip their
+	 * contents, so it moves with the row as it scrolls.
+	 * @param {import("../../core/cell/Cell.js").default} cell
+	 */
+	attach(cell) {
+		const rowElement = cell.row.getElement();
+
+		this.cell = cell;
+
+		if (this.element.parentNode !== rowElement) {
+			rowElement.appendChild(this.element);
 		}
+
+		// Measured straight away, so the handle is in place as soon as the range changes
+		this.position();
+	}
+
+	detach() {
+		this.cell = null;
+		this.element.remove();
+	}
+
+	/**
+	 * Measure at most once a frame. A frame requested from a scroll or resize
+	 * handler runs before that frame is painted, so the handle never lags.
+	 */
+	schedulePosition() {
+		if (this.positionFrame === null) {
+			this.positionFrame = requestAnimationFrame(() => this.position());
+		}
+	}
+
+	position() {
+		this.positionFrame = null;
+
+		if (!this.cell) {
+			return;
+		}
+
+		const cellElement = this.cell.getElement();
+
+		// Its row is outside the virtual DOM, measure once it's scrolled back in
+		this.positionStale = !cellElement.isConnected;
+
+		if (this.positionStale) {
+			return;
+		}
+
+		const rowElement = this.cell.row.getElement();
+		const displayRows = this.table.rowManager.getDisplayRows();
+		const isLastRow = displayRows[displayRows.length - 1] === this.cell.row;
+		let left = this.table.rtl
+			? cellElement.offsetLeft
+			: cellElement.offsetLeft + cellElement.offsetWidth;
+
+		// On the table's outer edges the handle stays inside, as the overhang
+		// would be clipped by, and make scrollable, the table holder.
+		left = Math.min(Math.max(left, FillHandle.RADIUS), rowElement.offsetWidth - FillHandle.RADIUS);
+
+		this.element.style.left = left + "px";
+		this.element.style.bottom = isLastRow ? "0px" : "";
 	}
 
 	handleMouseDown(e) {
@@ -52,11 +130,9 @@ export default class FillHandle extends CoreFeature {
 		this.preview = new Range(this.table, this.rangeManager, {
 			rect: this.source,
 			skipEvents: true,
-			classNames: ["tabulator-range-fill-preview"],
 		});
 
-		this.rangeManager.rangeContainer.appendChild(this.preview.element);
-		this.preview.layout();
+		this.rangeManager.layoutElement(true);
 		this.subscribe("cell-mousemove", this.handleCellMouseMove);
 		document.addEventListener("mouseup", this.handleMouseUp);
 	}
@@ -83,7 +159,7 @@ export default class FillHandle extends CoreFeature {
 		);
 
 		this.preview.setRect(rect);
-		this.preview.layout();
+		this.rangeManager.layoutElement(true);
 	}
 
 	async handleMouseUp() {
@@ -108,6 +184,8 @@ export default class FillHandle extends CoreFeature {
 		range.setData(data);
 
 		this.preview.destroy();
+		this.preview = null;
+		this.rangeManager.layoutElement();
 	}
 
 	/**
@@ -206,7 +284,10 @@ export default class FillHandle extends CoreFeature {
 
 	destroy() {
 		document.removeEventListener("mouseup", this.handleMouseUp);
-		this.element.remove();
+		cancelAnimationFrame(this.positionFrame);
+		this.positionFrame = null;
+		this.detach();
 		this.preview?.destroy();
+		this.preview = null;
 	}
 }

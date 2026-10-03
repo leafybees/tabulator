@@ -500,29 +500,6 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 			}
 			
 		}
-		
-		.tabulator-range-overlay {
-			position: absolute;
-			inset: 0;
-			z-index: 11;
-			pointer-events: none;
-			
-			.tabulator-range {
-				position: absolute;
-				box-sizing: border-box;
-				border: 1px solid $rangeBorderColor;
-				
-				&.tabulator-range-fill-preview {
-					border-style: dashed;
-				}
-			}
-			
-			.tabulator-range-cell-active {
-				position: absolute;
-				box-sizing: border-box;
-				border: 2px solid $rangeBorderColor;
-			}
-		}
 	}
 	
 	//footer element
@@ -977,6 +954,66 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 			background-color: $rowSelectedBackground;
 		}
 		
+		//range outline, drawn by the cells on each edge of the range
+		&.tabulator-range-top, &.tabulator-range-bottom, &.tabulator-range-left, &.tabulator-range-right, &.tabulator-range-cell-active{
+			&::after{
+				content: "";
+				position: absolute;
+				inset: 0;
+				box-sizing: border-box;
+				border: 0 solid $rangeBorderColor;
+				pointer-events: none;
+			}
+		}
+		
+		&.tabulator-range-top::after{
+			border-top-width: 1px;
+		}
+		
+		&.tabulator-range-bottom::after{
+			border-bottom-width: 1px;
+		}
+		
+		&.tabulator-range-left::after{
+			border-left-width: 1px;
+		}
+		
+		&.tabulator-range-right::after{
+			border-right-width: 1px;
+		}
+		
+		&.tabulator-range-cell-active::after{
+			border-width: 2px;
+		}
+		
+		//fill handle drag preview, drawn the same way as the range outline
+		&.tabulator-range-fill-top, &.tabulator-range-fill-bottom, &.tabulator-range-fill-left, &.tabulator-range-fill-right{
+			&::before{
+				content: "";
+				position: absolute;
+				inset: 0;
+				box-sizing: border-box;
+				border: 0 dashed $rangeBorderColor;
+				pointer-events: none;
+			}
+		}
+		
+		&.tabulator-range-fill-top::before{
+			border-top-width: 1px;
+		}
+		
+		&.tabulator-range-fill-bottom::before{
+			border-bottom-width: 1px;
+		}
+		
+		&.tabulator-range-fill-left::before{
+			border-left-width: 1px;
+		}
+		
+		&.tabulator-range-fill-right::before{
+			border-right-width: 1px;
+		}
+		
 		.tabulator-data-tree-branch-empty{
 			display:inline-block;
 			width:7px;
@@ -1202,9 +1239,12 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 }
 
 .tabulator-range-fill-handle {
+	//sits in the row of the range's bottom right cell, centred on the cell's corner, with its left offset set from JS
 	position: absolute;
-	right: -3px;
 	bottom: -3px;
+	margin-left: -3px;
+	//above the column resize handles (z-index 11) on the cell edges around it, including the next row's
+	z-index: 12;
 	width: 6px;
 	height: 6px;
 	background-color: $rangeHandleColor;
@@ -1431,11 +1471,6 @@ $rangeHeaderTextHighlightBackground: #000000 !default; //header text color when 
 				}
 			}
 		}
-	}
-	
-	.tabulator-range-fill-handle {
-		left: -3px;
-		right: initial;
 	}
 	
 	.tabulator-row{
